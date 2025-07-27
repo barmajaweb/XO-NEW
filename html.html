@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>لعبة XO أونلاين</title>
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: #f0f0f0;
+      text-align: center;
+      direction: rtl;
+      margin: 0;
+      padding: 30px 10px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px #ccc;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      gap: 10px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+    .cell {
+      width: 100px;
+      height: 100px;
+      font-size: 2em;
+      cursor: pointer;
+      background: #e0e0e0;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      transition: background 0.3s;
+    }
+    .cell:hover {
+      background: #d0d0d0;
+    }
+    input, button {
+      margin: 5px;
+      padding: 10px;
+      font-size: 1em;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      width: calc(100% - 24px);
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .scoreboard {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 20px;
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+    .chat-box {
+      height: 150px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background: #fafafa;
+      margin-top: 20px;
+      text-align: right;
+      font-size: 0.9em;
+    }
+    .chat-input {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    .chat-input input {
+      flex: 1;
+      margin-right: 10px;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container" id="home">
+    <h2>لعبة XO أونلاين</h2>
+    <input id="roomInput" placeholder="اسم الغرفة" />
+    <input id="playerNameInput" placeholder="اسمك" />
+    <input id="opponentNameInput" placeholder="اسم خصمك (فقط عند إنشاء الغرفة)" />
+    <button onclick="createRoom()">إنشاء غرفة</button>
+    <button onclick="joinRoom()">الانضمام إلى غرفة</button>
+  </div>
+
+  <div class="container hidden" id="game">
+    <h3 id="turn">الدور: </h3>
+    <div class="grid" id="board"></div>
+    <div class="scoreboard">
+      <div><span id="playerXName"></span>: <span id="playerXScore">0</span></div>
+      <div><span id="playerOName"></span>: <span id="playerOScore">0</span></div>
+    </div>
+    <h3 id="winnerMsg"></h3>
+    <button onclick="resetGame()">إعادة اللعب</button>
+    <button onclick="leaveRoom()">مغادرة الغرفة</button>
+
+    <div class="chat-box" id="chatBox"></div>
+    <div class="chat-input">
+      <input id="chatMessage" placeholder="اكتب رسالة..." />
+      <button onclick="sendMessage()">إرسال</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set, update, remove } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAnKSGLPjcspjynW4T5S62W2by5G--VwgY",
+      authDomain: "xo-game-97b4a.firebaseapp.com",
+      projectId: "xo-game-97b4a",
+      storageBucket: "xo-game-97b4a.appspot.com",
+      messagingSenderId: "657724895631",
+      appId: "1:657724895631:web:b064d888f0e9d4f87e9bfa",
+      databaseURL: "https://xo-game-97b4a-default-rtdb.firebaseio.com/"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase();
+
+    let room = "";
+    let playerName = "";
+    let opponentName = "";
+    let symbol = "";
+
+    const boardDiv = document.getElementById("board");
+    const winnerMsg = document.getElementById("winnerMsg");
+
+    // الأصوات
+    const clickSound = new Audio("https://www.soundjay.com/button/sounds/button-16.mp3");
+    const winSound = new Audio("https://www.soundjay.com/button/sounds/button-10.mp3");
+    const drawSound = new Audio("https://www.soundjay.com/button/sounds/button-09.mp3");
+
+    function createRoom() {
+      room = document.getElementById("roomInput").value.trim();
+      playerName = document.getElementById("playerNameInput").value.trim();
+      opponentName = document.getElementById("opponentNameInput").value.trim();
+      if (!room || !playerName || !opponentName) return alert("يرجى ملء جميع الحقول");
+
+      symbol = "X";
+      set(ref(db, `rooms/${room}`), {
+        board: Array(9).fill(""),
+        turn: "X",
+        players: { X: playerName, O: opponentName },
+        scores: { [playerName]: 0, [opponentName]: 0 },
+        chat: [],
+        winner: ""
+      });
+      switchToGame();
+    }
+
+    function joinRoom() {
+      room = document.getElementById("roomInput").value.trim();
+      playerName = document.getElementById("playerNameInput").value.trim();
+      if (!room || !playerName) return alert("يرجى إدخال اسم الغرفة واسمك");
+
+      onValue(ref(db, `rooms/${room}`), snapshot => {
+        const data = snapshot.val();
+        if (!data) return alert("الغرفة غير موجودة");
+
+        if (playerName === data.players.X) symbol = "X";
+        else if (playerName === data.players.O) symbol = "O";
+        else return alert("اسمك لا يتطابق مع أي لاعب في الغرفة");
+
+        opponentName = symbol === "X" ? data.players.O : data.players.X;
+        switchToGame();
+      }, { onlyOnce: true });
+    }
+
+    function switchToGame() {
+      document.getElementById("home").classList.add("hidden");
+      document.getElementById("game").classList.remove("hidden");
+      document.getElementById("playerXName").textContent = symbol === "X" ? playerName : opponentName;
+      document.getElementById("playerOName").textContent = symbol === "O" ? playerName : opponentName;
+
+      drawBoard();
+      setupListeners();
+    }
+
+    function drawBoard() {
+      boardDiv.innerHTML = "";
+      for (let i = 0; i < 9; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.id = `cell-${i}`;
+        cell.onclick = () => makeMove(i);
+        boardDiv.appendChild(cell);
+      }
+    }
+
+    function makeMove(index) {
+      const roomRef = ref(db, `rooms/${room}`);
+      onValue(roomRef, snapshot => {
+        const data = snapshot.val();
+        if (!data || data.board[index] !== "" || data.turn !== symbol || data.winner) return;
+
+        const newBoard = [...data.board];
+        newBoard[index] = symbol;
+
+        clickSound.play();
+
+        const winner = checkWinner(newBoard, data.players);
+        const updates = {
+          board: newBoard,
+          turn: symbol === "X" ? "O" : "X",
+          winner: winner ? (winner === "draw" ? "draw" : data.players[winner]) : ""
+        };
+
+        if (winner && winner !== "draw") {
+          updates.scores = { ...data.scores };
+          updates.scores[data.players[winner]] = (updates.scores[data.players[winner]] || 0) + 1;
+          winSound.play();
+        } else if (winner === "draw") {
+          drawSound.play();
+        }
+
+        update(roomRef, updates);
+      }, { onlyOnce: true });
+    }
+
+    function checkWinner(board, players) {
+      const wins = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+      ];
+      for (const [a,b,c] of wins) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+          return board[a]; // "X" أو "O"
+        }
+      }
+      return board.every(cell => cell !== "") ? "draw" : null;
+    }
+
+    function resetGame() {
+      update(ref(db, `rooms/${room}`), {
+        board: Array(9).fill(""),
+        turn: "X",
+        winner: ""
+      });
+      winnerMsg.textContent = "";
+    }
+
+    function leaveRoom() {
+      remove(ref(db, `rooms/${room}`));
+      window.location.reload();
+    }
+
+    function setupListeners() {
+      onValue(ref(db, `rooms/${room}/board`), snapshot => {
+        const board = snapshot.val();
+        if (!board) return;
+        board.forEach((val, i) => {
+          const cell = document.getElementById(`cell-${i}`);
+          if (cell) cell.textContent = val;
+        });
+      });
+
+      onValue(ref(db, `rooms/${room}/turn`), snapshot => {
+        const turn = snapshot.val();
+        document.getElementById("turn").textContent = `الدور: ${turn === symbol ? "دورك" : "انتظر خصمك"}`;
+      });
+
+      onValue(ref(db, `rooms/${room}/scores`), snapshot => {
+        const scores = snapshot.val() || {};
+        document.getElementById("playerXScore").textContent = scores[playerName] || 0;
+        document.getElementById("playerOScore").textContent = scores[opponentName] || 0;
+      });
+
+      onValue(ref(db, `rooms/${room}/winner`), snapshot => {
+        const winner = snapshot.val();
+        if (winner === "draw") {
+          winnerMsg.textContent = "تعادل!";
+        } else if (winner) {
+          winnerMsg.textContent = `فاز ${winner}!`;
+        } else {
+          winnerMsg.textContent = "";
+        }
+      });
+
+      onValue(ref(db, `rooms/${room}/chat`), snapshot => {
+        const chat = snapshot.val() || [];
+        const box = document.getElementById("chatBox");
+        box.innerHTML = chat.map(m => `<div><strong>${m.name}</strong>: ${m.text}</div>`).join("");
+        box.scrollTop = box.scrollHeight;
+      });
+    }
+
+    function sendMessage() {
+      const msgInput = document.getElementById("chatMessage");
+      const msg = msgInput.value.trim();
+      if (!msg) return;
+
+      const chatRef = ref(db, `rooms/${room}/chat`);
+      onValue(chatRef, snapshot => {
+        const chat = snapshot.val() || [];
+        chat.push({ name: playerName, text: msg });
+        set(chatRef, chat);
+      }, { onlyOnce: true });
+
+      msgInput.value = "";
+    }
+
+    // تعيين الدوال على window لتعمل من أزرار HTML
+    window.createRoom = createRoom;
+    window.joinRoom = joinRoom;
+    window.resetGame = resetGame;
+    window.leaveRoom = leaveRoom;
+    window.sendMessage = sendMessage;
+  </script>
+
+</body>
+</html>
