@@ -1,231 +1,458 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>لعبة XO أونلاين</title>
-  <style>
-    body {
-      font-family: 'Cairo', sans-serif;
-      background-color: #f4f4f4;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      direction: rtl;
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>لعبة XO أونلاين</title>
+
+<style>
+  body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(to right, #ffdde1, #ee9ca7);
+    margin: 0; padding: 0;
+    direction: rtl;
+    text-align: center;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .container {
+    background: white;
+    border-radius: 20px;
+    padding: 20px;
+    margin: 20px auto;
+    width: 360px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.15);
+  }
+  input[type="text"] {
+    padding: 10px;
+    margin: 10px auto;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    width: 90%;
+    font-size: 16px;
+    box-sizing: border-box;
+  }
+  button {
+    padding: 12px 20px;
+    margin: 10px 5px 0 5px;
+    background-color: #ee9ca7;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+  }
+  button:hover {
+    background-color: #ff6f91;
+  }
+  #gameUI {
+    display: none;
+  }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(3, 100px);
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
+  }
+  .cell {
+    width: 100px;
+    height: 100px;
+    font-size: 48px;
+    line-height: 100px;
+    background: #f0f0f0;
+    border-radius: 15px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.3s;
+  }
+  .cell:hover {
+    background: #ffd1d9;
+  }
+  #status {
+    margin-top: 15px;
+    font-size: 20px;
+    height: 30px;
+  }
+  #playersNames {
+    font-weight: bold;
+    margin-top: 10px;
+    font-size: 16px;
+  }
+  #scores {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-weight: bold;
+    font-size: 16px;
+  }
+  #chat {
+    margin-top: 15px;
+    border: 1px solid #ccc;
+    height: 150px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #fff;
+    border-radius: 10px;
+    font-size: 14px;
+    text-align: right;
+  }
+  #chatInputContainer {
+    display: flex;
+    margin-top: 8px;
+    justify-content: center;
+  }
+  #chatInput {
+    flex: 1;
+    padding: 8px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+  }
+  #sendBtn {
+    margin-right: 8px;
+    padding: 8px 16px;
+    border: none;
+    background: #ee9ca7;
+    color: white;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  #sendBtn:hover {
+    background-color: #ff6f91;
+  }
+  #leaveBtn {
+    margin-top: 15px;
+    padding: 10px 20px;
+    border: none;
+    background: #ee9ca7;
+    color: white;
+    border-radius: 15px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  #leaveBtn:hover {
+    background-color: #ff6f91;
+  }
+</style>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue, update, push, remove } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCflw5LIGASb8ne8dXspJDwXQeubpmc0x4",
+    authDomain: "xo-xo-d0335.firebaseapp.com",
+    databaseURL: "https://xo-xo-d0335-default-rtdb.firebaseio.com",
+    projectId: "xo-xo-d0335",
+    storageBucket: "xo-xo-d0335.appspot.com",
+    messagingSenderId: "526412538853",
+    appId: "1:526412538853:web:32599656e9c8d6922cc50c",
+    measurementId: "G-2ZXV79NS7L"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // DOM Elements
+  const setupUI = document.getElementById("setupUI");
+  const gameUI = document.getElementById("gameUI");
+  const boardEl = document.getElementById("board");
+  const statusEl = document.getElementById("status");
+  const playersNamesEl = document.getElementById("playersNames");
+  const scoreXEl = document.getElementById("scoreX");
+  const scoreOEl = document.getElementById("scoreO");
+  const chatEl = document.getElementById("chat");
+  const chatInputEl = document.getElementById("chatInput");
+  const sendBtn = document.getElementById("sendBtn");
+  const leaveBtn = document.getElementById("leaveBtn");
+
+  // State
+  let roomId = "";
+  let mySymbol = "";
+  let myName = "";
+  let opponentName = "";
+  let currentTurn = "X";
+  let scores = { X: 0, O: 0 };
+
+  // أصوات
+  const soundClick = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+  const soundWin = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+
+  function playSound(sound) {
+    sound.pause();
+    sound.currentTime = 0;
+    sound.play();
+  }
+
+  // إنشاء الغرفة
+  window.createRoom = () => {
+    myName = document.getElementById("myNameCreate").value.trim();
+    opponentName = document.getElementById("opponentNameCreate").value.trim();
+    if (!myName || !opponentName) {
+      alert("يرجى إدخال اسميك واسم خصمك.");
+      return;
     }
-    #gameContainer {
-      display: none;
-      flex-direction: column;
-      align-items: center;
+    roomId = Math.random().toString(36).substring(2, 8);
+    mySymbol = "X";
+
+    set(ref(db, `rooms/${roomId}`), {
+      board: Array(9).fill(""),
+      turn: "X",
+      players: {
+        X: myName,
+        O: opponentName
+      },
+      scores: { X: 0, O: 0 },
+      chat: {}
+    }).then(() => {
+      showGameUI();
+      listenGame();
+      listenChat();
+      updatePlayersNames();
+    });
+  };
+
+  // الانضمام إلى غرفة
+  window.joinRoom = () => {
+    roomId = document.getElementById("roomIdJoin").value.trim();
+    myName = document.getElementById("myNameJoin").value.trim();
+    if (!roomId || !myName) {
+      alert("يرجى إدخال معرف الغرفة واسمك.");
+      return;
     }
-    #board {
-      display: grid;
-      grid-template-columns: repeat(3, 100px);
-      gap: 5px;
-      margin: 20px 0;
-    }
-    .cell {
-      width: 100px;
-      height: 100px;
-      background-color: #fff;
-      border: 2px solid #333;
-      font-size: 48px;
-      text-align: center;
-      line-height: 100px;
-      cursor: pointer;
-    }
-    #chatBox {
-      border: 1px solid #ccc;
-      width: 320px;
-      height: 200px;
-      overflow-y: scroll;
-      padding: 10px;
-      background: white;
-    }
-    #chatInput {
-      width: 240px;
-    }
-  </style>
-</head>
-<body>
-  <div id="mainMenu">
-    <h2>مرحباً بك في XO</h2>
-    <input type="text" id="myName" placeholder="اسمك">
-    <input type="text" id="opponentName" placeholder="اسم الخصم">
-    <button onclick="createRoom()">إنشاء غرفة</button>
-    <input type="text" id="roomId" placeholder="رمز الغرفة">
-    <button onclick="joinRoom()">انضمام إلى غرفة</button>
-  </div>
-
-  <div id="gameContainer">
-    <h3 id="status">جاري التحميل...</h3>
-    <div id="board"></div>
-    <div>
-      <input type="text" id="chatInput" placeholder="اكتب رسالة">
-      <button onclick="sendMessage()">إرسال</button>
-    </div>
-    <div id="chatBox"></div>
-    <button onclick="leaveRoom()">مغادرة الغرفة</button>
-  </div>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getDatabase, ref, set, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyCflw5LIGASb8ne8dXspJDwXQeubpmc0x4",
-      authDomain: "xo-xo-d0335.firebaseapp.com",
-      databaseURL: "https://xo-xo-d0335-default-rtdb.firebaseio.com",
-      projectId: "xo-xo-d0335",
-      storageBucket: "xo-xo-d0335.appspot.com",
-      messagingSenderId: "526412538853",
-      appId: "1:526412538853:web:32599656e9c8d6922cc50c",
-      measurementId: "G-2ZXV79NS7L"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-
-    const myNameInput = document.getElementById('myName');
-    const opponentNameInput = document.getElementById('opponentName');
-    const roomIdInput = document.getElementById('roomId');
-    const gameContainer = document.getElementById('gameContainer');
-    const mainMenu = document.getElementById('mainMenu');
-    const board = document.getElementById('board');
-    const statusText = document.getElementById('status');
-    const chatBox = document.getElementById('chatBox');
-
-    let myName = "";
-    let roomId = "";
-    let mySymbol = "";
-    let currentTurn = "X";
-
-    function createBoard() {
-      board.innerHTML = "";
-      for (let i = 0; i < 9; i++) {
-        const cell = document.createElement('div');
-        cell.classList.add('cell');
-        cell.dataset.index = i;
-        cell.addEventListener('click', () => makeMove(i));
-        board.appendChild(cell);
+    const playersRef = ref(db, `rooms/${roomId}/players`);
+    onValue(playersRef, snapshot => {
+      const players = snapshot.val();
+      if (!players) {
+        alert("الغرفة غير موجودة.");
+        return;
       }
-    }
+      if (players.O && players.O !== "") {
+        alert("الغرفة ممتلئة.");
+        return;
+      }
+      opponentName = players.X;
+      mySymbol = "O";
 
-    function updateBoardUI(state) {
-      document.querySelectorAll('.cell').forEach(cell => {
-        const index = cell.dataset.index;
-        cell.textContent = state[index];
+      update(ref(db, `rooms/${roomId}/players`), { O: myName }).then(() => {
+        showGameUI();
+        listenGame();
+        listenChat();
+        updatePlayersNames();
       });
+    }, { onlyOnce: true });
+  };
+
+  // إظهار واجهة اللعبة وإخفاء الإعدادات
+  function showGameUI() {
+    setupUI.style.display = "none";
+    gameUI.style.display = "block";
+    statusEl.textContent = "جارٍ تحميل اللعبة...";
+  }
+
+  // إنشاء لوحة اللعب
+  function createBoard() {
+    boardEl.innerHTML = "";
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement("div");
+      cell.classList.add("cell");
+      cell.dataset.index = i;
+      cell.addEventListener("click", () => makeMove(i));
+      boardEl.appendChild(cell);
     }
+  }
 
-    function createRoom() {
-      myName = myNameInput.value.trim();
-      const opponent = opponentNameInput.value.trim();
-      if (!myName || !opponent) return alert("الرجاء إدخال اسمك واسم الخصم");
-
-      roomId = Math.random().toString(36).substr(2, 5);
-      set(ref(db, 'rooms/' + roomId), {
-        players: {
-          X: myName,
-          O: opponent
-        },
-        state: Array(9).fill("")
-      });
-      mySymbol = "X";
-      enterGame();
+  // تحديث لوحة اللعب
+  function updateBoard(board) {
+    for (let i = 0; i < 9; i++) {
+      const cell = boardEl.querySelector(`[data-index="${i}"]`);
+      cell.textContent = board[i];
     }
+  }
 
-    function joinRoom() {
-      myName = myNameInput.value.trim();
-      roomId = roomIdInput.value.trim();
-      if (!myName || !roomId) return alert("أدخل اسمك ورمز الغرفة");
+  // الاستماع لتغييرات اللعبة من Firebase
+  function listenGame() {
+    const roomRef = ref(db, `rooms/${roomId}`);
+    onValue(roomRef, snapshot => {
+      const data = snapshot.val();
+      if (!data) {
+        alert("تمت مغادرة الغرفة أو حذفها.");
+        resetToSetup();
+        return;
+      }
+      updateBoard(data.board);
+      currentTurn = data.turn;
+      scores = data.scores || { X: 0, O: 0 };
+      updateScores();
+      updatePlayersNames();
 
-      const roomRef = ref(db, 'rooms/' + roomId);
-      onValue(roomRef, snapshot => {
-        const data = snapshot.val();
-        if (data && data.players) {
-          if (data.players.O === myName || !data.players.O) {
-            update(ref(db, 'rooms/' + roomId + '/players'), { O: myName });
-            mySymbol = "O";
-            enterGame();
-          } else if (data.players.X === myName) {
-            mySymbol = "X";
-            enterGame();
+      if (currentTurn === null) {
+        statusEl.textContent = `انتهت اللعبة! الفائز: ${getWinnerName(data.board)}`;
+        playSound(soundWin);
+      } else {
+        statusEl.textContent = currentTurn === mySymbol ? "دورك الآن" : "انتظر دور خصمك...";
+      }
+    });
+  }
+
+  // تحديث أسماء اللاعبين
+  function updatePlayersNames() {
+    playersNamesEl.textContent = `${myName} (${mySymbol}) vs ${opponentName} (${mySymbol === "X" ? "O" : "X"})`;
+  }
+
+  // تحديث نقاط الفوز
+  function updateScores() {
+    scoreXEl.textContent = `X (${mySymbol === "X" ? myName : opponentName}): ${scores.X}`;
+    scoreOEl.textContent = `O (${mySymbol === "O" ? myName : opponentName}): ${scores.O}`;
+  }
+
+  // تنفيذ حركة اللعب
+  function makeMove(index) {
+    if (currentTurn !== mySymbol) return;
+    const cellRef = ref(db, `rooms/${roomId}/board/${index}`);
+    onValue(cellRef, snapshot => {
+      if (snapshot.exists() && snapshot.val() !== "") return;
+      playSound(soundClick);
+
+      set(cellRef, mySymbol).then(() => {
+        // تحقق من الفائز
+        const roomRef = ref(db, `rooms/${roomId}`);
+        onValue(roomRef, snap => {
+          const data = snap.val();
+          if (!data) return;
+
+          const winner = getWinner(data.board);
+          let nextTurn = currentTurn === "X" ? "O" : "X";
+
+          if (winner) {
+            // تحديث النقاط
+            scores[winner] = (scores[winner] || 0) + 1;
+            update(ref(db, `rooms/${roomId}`), {
+              scores,
+              turn: null
+            });
           } else {
-            alert("الغرفة ممتلئة أو الاسم مستخدم");
+            update(ref(db, `rooms/${roomId}`), {
+              turn: nextTurn
+            });
           }
-        } else {
-          alert("الغرفة غير موجودة");
-        }
-      }, { onlyOnce: true });
-    }
-
-    function enterGame() {
-      mainMenu.style.display = "none";
-      gameContainer.style.display = "flex";
-      createBoard();
-
-      onValue(ref(db, 'rooms/' + roomId + '/state'), snapshot => {
-        const state = snapshot.val();
-        updateBoardUI(state);
-        const winner = checkWinner(state);
-        if (winner) {
-          statusText.textContent = `انتهت اللعبة! الفائز: ${winner}`;
-        } else {
-          currentTurn = state.filter(x => x).length % 2 === 0 ? "X" : "O";
-          statusText.textContent = currentTurn === mySymbol ? "دورك الآن" : "انتظر خصمك...";
-        }
+        }, { onlyOnce: true });
       });
+    }, { onlyOnce: true });
+  }
 
-      onValue(ref(db, 'rooms/' + roomId + '/chat'), snapshot => {
-        const chat = snapshot.val();
-        chatBox.innerHTML = chat ? Object.values(chat).join('<br>') : "";
-        chatBox.scrollTop = chatBox.scrollHeight;
+  // تحقق من الفائز
+  function getWinner(board) {
+    const wins = [
+      [0,1,2],[3,4,5],[6,7,8],
+      [0,3,6],[1,4,7],[2,5,8],
+      [0,4,8],[2,4,6]
+    ];
+    for (const [a,b,c] of wins) {
+      if (board[a] && board[a] === board[b] && board[b] === board[c]) return board[a];
+    }
+    return null;
+  }
+  function getWinnerName(board) {
+    const winner = getWinner(board);
+    if (!winner) return "تعادل";
+    if (winner === mySymbol) return "أنت";
+    return opponentName;
+  }
+
+  // الدردشة
+  const chatRef = () => ref(db, `rooms/${roomId}/chat`);
+
+  sendBtn.addEventListener("click", sendMessage);
+  chatInputEl.addEventListener("keydown", e => {
+    if (e.key === "Enter") sendMessage();
+  });
+
+  function sendMessage() {
+    const msg = chatInputEl.value.trim();
+    if (!msg) return;
+    const data = { from: myName, text: msg, time: Date.now() };
+    push(chatRef(), data);
+    chatInputEl.value = "";
+  }
+
+  function listenChat() {
+    onValue(chatRef(), snapshot => {
+      const chats = snapshot.val() || {};
+      const messages = Object.values(chats).sort((a,b) => a.time - b.time);
+      chatEl.innerHTML = messages.map(m => `<b>${m.from}:</b> ${m.text}`).join("<br>");
+      chatEl.scrollTop = chatEl.scrollHeight;
+    });
+  }
+
+  // مغادرة الغرفة
+  leaveBtn.addEventListener("click", () => {
+    if (confirm("هل تريد مغادرة الغرفة؟")) {
+      remove(ref(db, `rooms/${roomId}`)).then(() => {
+        resetToSetup();
       });
     }
+  });
 
-    function makeMove(index) {
-      const cellRef = ref(db, 'rooms/' + roomId + '/state');
-      onValue(cellRef, snapshot => {
-        const state = snapshot.val();
-        if (state[index] || currentTurn !== mySymbol) return;
-        state[index] = mySymbol;
-        set(cellRef, state);
-      }, { onlyOnce: true });
-    }
+  // إعادة إعداد الصفحة للبدء من جديد
+  function resetToSetup() {
+    roomId = "";
+    mySymbol = "";
+    myName = "";
+    opponentName = "";
+    currentTurn = "X";
+    scores = { X: 0, O: 0 };
+    setupUI.style.display = "block";
+    gameUI.style.display = "none";
+    chatEl.innerHTML = "";
+    boardEl.innerHTML = "";
+    statusEl.textContent = "";
+  }
 
-    function sendMessage() {
-      const input = document.getElementById('chatInput');
-      const message = `${myName}: ${input.value}`;
-      const chatRef = ref(db, 'rooms/' + roomId + '/chat');
-      onValue(chatRef, snapshot => {
-        const chat = snapshot.val() || {};
-        const key = Date.now();
-        chat[key] = message;
-        set(chatRef, chat);
-        input.value = "";
-      }, { onlyOnce: true });
-    }
+  // بداية إعداد اللوحة
+  createBoard();
 
-    function leaveRoom() {
-      remove(ref(db, 'rooms/' + roomId));
-      location.reload();
-    }
+</script>
+</head>
 
-    function checkWinner(s) {
-      const combos = [
-        [0,1,2], [3,4,5], [6,7,8],
-        [0,3,6], [1,4,7], [2,5,8],
-        [0,4,8], [2,4,6]
-      ];
-      for (const [a,b,c] of combos) {
-        if (s[a] && s[a] === s[b] && s[b] === s[c]) return s[a];
-      }
-      return null;
-    }
-  </script>
+<body>
+  <div id="setupUI" class="container">
+    <h2>إنشاء غرفة جديدة</h2>
+    <input type="text" id="myNameCreate" placeholder="اسمك" autocomplete="off" />
+    <input type="text" id="opponentNameCreate" placeholder="اسم خصمك" autocomplete="off" />
+    <button onclick="createRoom()">إنشاء الغرفة</button>
+
+    <hr />
+
+    <h2>الانضمام إلى غرفة</h2>
+    <input type="text" id="myNameJoin" placeholder="اسمك" autocomplete="off" />
+    <input type="text" id="roomIdJoin" placeholder="معرف الغرفة" autocomplete="off" />
+    <button onclick="joinRoom()">انضم الآن</button>
+  </div>
+
+  <div id="gameUI" class="container">
+    <div id="playersNames"></div>
+    <div id="scores">
+      <div id="scoreX"></div>
+      <div id="scoreO"></div>
+    </div>
+    <div id="status"></div>
+
+    <div id="board"></div>
+
+    <div id="chat"></div>
+    <div id="chatInputContainer">
+      <input id="chatInput" placeholder="اكتب رسالة..." autocomplete="off" />
+      <button id="sendBtn">إرسال</button>
+    </div>
+
+    <button id="leaveBtn">مغادرة الغرفة</button>
+  </div>
 </body>
 </html>
