@@ -1,231 +1,434 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>لعبة XO أونلاين</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(to right, #f7f7f7, #e6f0ff);
+      text-align: center;
+      padding: 20px;
+      direction: rtl;
+    }
+    .container {
+      max-width: 500px;
+      margin: auto;
+      padding: 20px;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    }
+    input, button {
+      padding: 10px;
+      width: 80%;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .room-info {
+      margin: 20px 0;
+      font-size: 18px;
+      color: #333;
+    }
+    #gameArea {
+      display: none;
+      margin-top: 20px;
+    }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .cell {
+      width: 100px;
+      height: 100px;
+      font-size: 48px;
+      background: #f0f0f0;
+      border-radius: 15px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.3s;
+    }
+    .cell:hover {
+      background-color: #d6eaff;
+    }
+    #scores {
+      display: flex;
+      justify-content: space-around;
+      font-size: 20px;
+      margin-bottom: 15px;
+    }
+    #chat {
+      background: #f9f9f9;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      height: 200px;
+      overflow-y: auto;
+      padding: 10px;
+      text-align: right;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    #chat input {
+      width: calc(80% - 20px);
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+      direction: rtl;
+    }
+    #chat button {
+      width: 18%;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 10px;
+      background-color: #2196F3;
+      border: none;
+      color: white;
+      cursor: pointer;
+      margin-left: 2%;
+    }
+    #chat button:hover {
+      background-color: #1976d2;
+    }
+    #leaveBtn {
+      background-color: #e74c3c;
+      margin-top: 20px;
+      width: 100%;
+      border: none;
+      font-size: 18px;
+    }
+    #leaveBtn:hover {
+      background-color: #c0392b;
+    }
+    #turnInfo {
+      margin-bottom: 15px;
+      font-size: 18px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>لعبة XO أونلاين</h2>
+
+    <div id="mainMenu">
+      <input type="text" id="playerName" placeholder="اسمك" />
+      <input type="text" id="opponentName" placeholder="اسم خصمك" />
+      <button onclick="createRoom()">إنشاء غرفة</button>
+
+      <hr />
+
+      <input type="text" id="roomCodeJoin" placeholder="معرف الغرفة" />
+      <input type="text" id="joiningPlayerName" placeholder="اسمك" />
+      <button onclick="joinRoom()">انضمام إلى غرفة</button>
+    </div>
+
+    <div id="roomInfo" class="room-info" style="display:none;"></div>
+
+    <div id="gameArea">
+      <div id="scores">
+        <div>🏆 <span id="player1Name"></span>: <span id="score1">0</span></div>
+        <div>🏆 <span id="player2Name"></span>: <span id="score2">0</span></div>
+      </div>
+
+      <div id="turnInfo"></div>
+
+      <div id="board">
+        <div class="cell" id="cell0" onclick="makeMove(0)"></div>
+        <div class="cell" id="cell1" onclick="makeMove(1)"></div>
+        <div class="cell" id="cell2" onclick="makeMove(2)"></div>
+        <div class="cell" id="cell3" onclick="makeMove(3)"></div>
+        <div class="cell" id="cell4" onclick="makeMove(4)"></div>
+        <div class="cell" id="cell5" onclick="makeMove(5)"></div>
+        <div class="cell" id="cell6" onclick="makeMove(6)"></div>
+        <div class="cell" id="cell7" onclick="makeMove(7)"></div>
+        <div class="cell" id="cell8" onclick="makeMove(8)"></div>
+      </div>
+
+      <div id="chat">
+        <div id="chatBox"></div>
+        <input id="chatInput" placeholder="اكتب رسالة..." />
+        <button onclick="sendMessage()">إرسال</button>
+      </div>
+
+      <button id="leaveBtn" onclick="leaveRoom()">مغادرة الغرفة</button>
+    </div>
+  </div>
+
+  <audio id="clickSound" src="https://www.soundjay.com/button/beep-07.wav"></audio>
+  <audio id="winSound" src="https://www.soundjay.com/button/beep-06.wav"></audio>
+  <audio id="loseSound" src="https://www.soundjay.com/button/beep-05.wav"></audio>
+
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, update, push, remove } from "https://www.gstatic.com/firebasejs/12.0.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCflw5LIGASb8ne8dXspJDwXQeubpmc0x4",
       authDomain: "xo-xo-d0335.firebaseapp.com",
+      databaseURL: "https://xo-xo-d0335-default-rtdb.firebaseio.com",
       projectId: "xo-xo-d0335",
       storageBucket: "xo-xo-d0335.appspot.com",
       messagingSenderId: "526412538853",
-      appId: "1:526412538853:web:32599656e9c8d6922cc50c",
-      databaseURL: "https://xo-xo-d0335-default-rtdb.firebaseio.com"
+      appId: "1:526412538853:web:32599656e9c8d6922cc50c"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
     let roomId = "";
-    let player = "";
-    let currentPlayer = "X";
-    let scores = { X: 0, O: 0 };
+    let playerSymbol = "";
+    let playerName = "";
+    let opponentName = "";
+    let currentTurn = "X";
 
-    function createRoom() {
+    const clickSound = document.getElementById("clickSound");
+    const winSound = document.getElementById("winSound");
+    const loseSound = document.getElementById("loseSound");
+
+    // إنشاء غرفة جديدة
+    window.createRoom = () => {
+      playerName = document.getElementById("playerName").value.trim();
+      opponentName = document.getElementById("opponentName").value.trim();
+
+      if (!playerName || !opponentName) {
+        alert("يرجى إدخال اسمك واسم خصمك");
+        return;
+      }
+
       roomId = Math.random().toString(36).substring(2, 8);
-      player = "X";
-      document.getElementById("room-id-display").textContent = "معرف الغرفة: " + roomId;
-      set(ref(db, "rooms/" + roomId), {
+      playerSymbol = "X";
+
+      const roomRef = ref(db, "rooms/" + roomId);
+      set(roomRef, {
+        player1: { name: playerName, score: 0, symbol: "X" },
+        player2: { name: opponentName, score: 0, symbol: "O" },
         board: ["", "", "", "", "", "", "", "", ""],
         turn: "X",
         chat: [],
-        scores: { X: 0, O: 0 }
+        state: "waiting"
       });
-      showGame();
-      listenToRoom();
-    }
 
-    function joinRoom() {
-      roomId = document.getElementById("room-code").value.trim();
-      if (roomId === "") return alert("يرجى إدخال معرف الغرفة!");
-      player = "O";
-      document.getElementById("room-id-display").textContent = "معرف الغرفة: " + roomId;
-      showGame();
-      listenToRoom();
-    }
+      document.getElementById("roomInfo").innerText = `تم إنشاء الغرفة! شارك هذا الكود مع خصمك:\n${roomId}`;
+      showGameArea();
+      clickSound.play();
+      updatePlayerNames();
+      listenRoomUpdates();
+    };
 
-    function leaveRoom() {
-      if (roomId) remove(ref(db, "rooms/" + roomId));
-      location.reload();
-    }
+    // الانضمام إلى غرفة موجودة
+    window.joinRoom = () => {
+      roomId = document.getElementById("roomCodeJoin").value.trim();
+      playerName = document.getElementById("joiningPlayerName").value.trim();
 
-    function showGame() {
-      document.getElementById("start").style.display = "none";
-      document.getElementById("game").style.display = "block";
-    }
+      if (!roomId || !playerName) {
+        alert("يرجى إدخال معرف الغرفة واسمك");
+        return;
+      }
 
-    function listenToRoom() {
-      onValue(ref(db, "rooms/" + roomId), (snapshot) => {
+      const roomRef = ref(db, "rooms/" + roomId);
+      onValue(roomRef, (snapshot) => {
+        if (!snapshot.exists()) {
+          alert("هذه الغرفة غير موجودة");
+          return;
+        }
         const data = snapshot.val();
-        if (!data) return;
-        updateBoard(data.board);
-        currentPlayer = data.turn;
-        scores = data.scores || { X: 0, O: 0 };
-        updateScores();
-        updateChat(data.chat || []);
-      });
-    }
 
-    function play(index) {
-      const cell = document.getElementById("cell" + index);
-      if (cell.textContent !== "" || currentPlayer !== player) return;
-      onValue(ref(db, "rooms/" + roomId), (snapshot) => {
-        const data = snapshot.val();
-        if (!data) return;
-        const board = data.board;
-        if (board[index] === "") {
-          board[index] = player;
-          const winner = checkWinner(board);
-          let newScores = data.scores || { X: 0, O: 0 };
-          if (winner) {
-            alert("الفائز هو: " + winner);
-            newScores[winner]++;
-            setTimeout(() => clearBoard(), 1000);
-          } else if (!board.includes("")) {
-            alert("تعادل!");
-            setTimeout(() => clearBoard(), 1000);
-          }
-          set(ref(db, "rooms/" + roomId), {
-            board,
-            turn: player === "X" ? "O" : "X",
-            chat: data.chat || [],
-            scores: newScores
+        if (data.state === "started") {
+          alert("اللعبة قد بدأت بالفعل");
+          return;
+        }
+
+        if (data.player2.name !== playerName) {
+          // تحديث اسم اللاعب الثاني
+          update(roomRef, {
+            player2: { name: playerName, score: data.player2.score, symbol: "O" },
+            state: "started"
           });
         }
+
+        playerSymbol = "O";
+        opponentName = data.player1.name;
+
+        document.getElementById("roomInfo").innerText = `تم الانضمام إلى الغرفة: ${roomId}`;
+        showGameArea();
+        clickSound.play();
+        updatePlayerNames();
+        listenRoomUpdates();
       }, { onlyOnce: true });
+    };
+
+    function showGameArea() {
+      document.getElementById("mainMenu").style.display = "none";
+      document.getElementById("gameArea").style.display = "block";
+      document.getElementById("leaveBtn").style.display = "block";
     }
 
-    function clearBoard() {
-      set(ref(db, "rooms/" + roomId + "/board"), ["", "", "", "", "", "", "", "", ""]);
+    function updatePlayerNames() {
+      document.getElementById("player1Name").textContent = playerName;
+      document.getElementById("player2Name").textContent = opponentName;
+    }
+
+    function listenRoomUpdates() {
+      const roomRef = ref(db, "rooms/" + roomId);
+      onValue(roomRef, (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        updateBoard(data.board);
+        updateScores(data.player1.score, data.player2.score);
+        currentTurn = data.turn;
+        updateTurnInfo();
+
+        updateChat(data.chat || []);
+
+        if (data.state === "waiting") {
+          document.getElementById("roomInfo").innerText = "في انتظار انضمام الخصم...";
+        } else if (data.state === "ended") {
+          alert("اللعبة انتهت");
+          winSound.play();
+        }
+      });
     }
 
     function updateBoard(board) {
-      board.forEach((val, i) => {
-        document.getElementById("cell" + i).textContent = val;
+      board.forEach((cell, i) => {
+        document.getElementById("cell" + i).textContent = cell;
       });
     }
 
-    function updateScores() {
-      document.getElementById("score-x").textContent = "X: " + (scores.X || 0);
-      document.getElementById("score-o").textContent = "O: " + (scores.O || 0);
+    function updateScores(score1, score2) {
+      document.getElementById("score1").textContent = score1;
+      document.getElementById("score2").textContent = score2;
     }
 
-    function checkWinner(b) {
-      const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-      for (let [a, b1, c] of wins) {
-        if (b[a] && b[a] === b[b1] && b[a] === b[c]) return b[a];
+    function updateTurnInfo() {
+      const turnText = currentTurn === playerSymbol ? "دورك الآن" : `دور اللاعب ${currentTurn}`;
+      document.getElementById("turnInfo").textContent = turnText;
+    }
+
+    window.makeMove = (index) => {
+      const cellRef = ref(db, `rooms/${roomId}/board/${index}`);
+      if (currentTurn !== playerSymbol) return;
+      if (document.getElementById("cell" + index).textContent !== "") return;
+
+      clickSound.play();
+
+      onValue(cellRef, (snapshot) => {
+        if (snapshot.exists() && snapshot.val() === "") {
+          const boardRef = ref(db, "rooms/" + roomId + "/board");
+          onValue(ref(db, "rooms/" + roomId), (snap) => {
+            let data = snap.val();
+            if (!data) return;
+
+            // تحقق من الفوز بعد التحرك
+            const board = data.board;
+            board[index] = playerSymbol;
+
+            const winner = checkWinner(board);
+            let player1Score = data.player1.score;
+            let player2Score = data.player2.score;
+            let newTurn = playerSymbol === "X" ? "O" : "X";
+            let newState = data.state;
+
+            if (winner) {
+              if (winner === playerSymbol) {
+                alert("لقد ربحت!");
+                winSound.play();
+                if (playerSymbol === "X") player1Score++; else player2Score++;
+              } else {
+                loseSound.play();
+              }
+              newState = "ended";
+              // إعادة تعيين اللوحة بعد ثانية
+              setTimeout(() => resetBoard(), 1200);
+            } else if (!board.includes("")) {
+              alert("تعادل!");
+              newState = "ended";
+              setTimeout(() => resetBoard(), 1200);
+            }
+
+            set(ref(db, "rooms/" + roomId), {
+              ...data,
+              board,
+              turn: newTurn,
+              player1: { ...data.player1, score: player1Score },
+              player2: { ...data.player2, score: player2Score },
+              state: newState,
+            });
+          }, { onlyOnce: true });
+        }
+      }, { onlyOnce: true });
+    };
+
+    function checkWinner(board) {
+      const lines = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+      ];
+      for (const [a,b,c] of lines) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
       }
       return null;
     }
 
-    function sendMessage() {
-      const msg = document.getElementById("msg").value.trim();
-      if (msg === "") return;
-      onValue(ref(db, "rooms/" + roomId), (snapshot) => {
-        const data = snapshot.val();
-        const messages = data.chat || [];
-        messages.push(player + ": " + msg);
-        set(ref(db, "rooms/" + roomId + "/chat"), messages);
-        document.getElementById("msg").value = "";
-      }, { onlyOnce: true });
+    function resetBoard() {
+      set(ref(db, "rooms/" + roomId + "/board"), ["", "", "", "", "", "", "", "", ""]);
+      updateTurnInfo();
+      // إعادة حالة اللعبة للانتظار إذا تريد (أو استمر حسب المنطق)
+      update(ref(db, "rooms/" + roomId), { state: "started" });
     }
 
-    function updateChat(messages) {
-      const chatBox = document.getElementById("chat-box");
+    // دردشة
+    window.sendMessage = () => {
+      const input = document.getElementById("chatInput");
+      const msg = input.value.trim();
+      if (!msg) return;
+      onValue(ref(db, "rooms/" + roomId), (snap) => {
+        let data = snap.val();
+        let chat = data.chat || [];
+        chat.push({ from: playerName, text: msg });
+        update(ref(db, "rooms/" + roomId), { chat });
+        input.value = "";
+      }, { onlyOnce: true });
+    };
+
+    function updateChat(chat) {
+      const chatBox = document.getElementById("chatBox");
       chatBox.innerHTML = "";
-      messages.forEach(m => {
+      chat.forEach(({from, text}) => {
         const p = document.createElement("p");
-        p.textContent = m;
+        p.textContent = from + ": " + text;
         chatBox.appendChild(p);
       });
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    window.createRoom = createRoom;
-    window.joinRoom = joinRoom;
-    window.leaveRoom = leaveRoom;
-    window.play = play;
-    window.sendMessage = sendMessage;
+    window.leaveRoom = () => {
+      if (roomId) {
+        remove(ref(db, "rooms/" + roomId));
+      }
+      location.reload();
+    };
   </script>
-
-  <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      background: linear-gradient(to bottom, #f9f9f9, #ddd);
-      text-align: center;
-      direction: rtl;
-      padding: 20px;
-    }
-    #game { display: none; }
-    .board {
-      display: grid;
-      grid-template-columns: repeat(3, 100px);
-      gap: 5px;
-      justify-content: center;
-      margin: 20px auto;
-    }
-    .cell {
-      width: 100px;
-      height: 100px;
-      font-size: 40px;
-      background: #fff;
-      border: 2px solid #888;
-      cursor: pointer;
-    }
-    #chat-box {
-      height: 150px;
-      overflow-y: auto;
-      background: #fff;
-      border: 1px solid #aaa;
-      padding: 10px;
-      margin-bottom: 10px;
-    }
-    input, button {
-      padding: 10px;
-      margin: 5px;
-      font-size: 16px;
-    }
-    #room-id-display {
-      font-size: 20px;
-      margin: 10px 0;
-      color: #333;
-    }
-  </style>
-</head>
-
-<body>
-  <div id="start">
-    <h2>مرحباً بك في لعبة XO أونلاين</h2>
-    <button onclick="createRoom()">إنشاء غرفة</button><br>
-    <input type="text" id="room-code" placeholder="أدخل معرف الغرفة">
-    <button onclick="joinRoom()">الانضمام إلى غرفة</button>
-  </div>
-
-  <div id="game">
-    <h3 id="room-id-display"></h3>
-    <div class="board">
-      <div class="cell" id="cell0" onclick="play(0)"></div>
-      <div class="cell" id="cell1" onclick="play(1)"></div>
-      <div class="cell" id="cell2" onclick="play(2)"></div>
-      <div class="cell" id="cell3" onclick="play(3)"></div>
-      <div class="cell" id="cell4" onclick="play(4)"></div>
-      <div class="cell" id="cell5" onclick="play(5)"></div>
-      <div class="cell" id="cell6" onclick="play(6)"></div>
-      <div class="cell" id="cell7" onclick="play(7)"></div>
-      <div class="cell" id="cell8" onclick="play(8)"></div>
-    </div>
-    <div>
-      <strong>النقاط:</strong>
-      <span id="score-x">X: 0</span> |
-      <span id="score-o">O: 0</span>
-    </div>
-    <div id="chat-box"></div>
-    <input id="msg" placeholder="أدخل رسالة...">
-    <button onclick="sendMessage()">إرسال</button><br><br>
-    <button onclick="leaveRoom()">مغادرة الغرفة</button>
-  </div>
 </body>
 </html>
